@@ -8,7 +8,12 @@ It provides:
 
 - public read endpoints for price lookup
 - user-facing search UI
-- token-protected admin operations for reload and ingestion trigger
+- token-protected admin operations for reload, single-chain ingestion, all-chains background ingestion, and graceful shutdown
+
+Search behavior notes:
+
+- Items are grouped by barcode (`item_code`) across chains.
+- Each grouped item includes `chains`, `chain_names`, and a merged `prices` list with per-row `chain` and `chain_name`.
 
 ## Server Startup
 
@@ -188,6 +193,63 @@ curl -X POST "http://127.0.0.1:8000/admin/pipeline?chain=RAMI_LEVY&mode=full&max
   -H "X-Admin-Token: dev-admin-token"
 ```
 
+### POST /admin/pipeline/all
+
+Query parameters:
+
+- `mode` (`full` or `refresh`)
+- `max_branches` (default `0`, no cap)
+- `max_workers` (`1..32`, default `6`)
+- `insecure` (`true|false`, default `false`)
+- `reload_after` (`true|false`, default `true`)
+
+Purpose:
+
+- start a background worker that runs all available chain pipelines sequentially
+
+Behavior:
+
+- returns `202` when a new worker starts
+- returns `409` if another all-chains worker is already running
+- tracks per-chain success/failure, durations, and output tail
+
+Example:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/admin/pipeline/all?mode=full&max_workers=8&reload_after=true" \
+  -H "X-Admin-Token: dev-admin-token"
+```
+
+### GET /admin/pipeline/all/status
+
+Purpose:
+
+- read current all-chains worker state (running flag, current chain, progress, results)
+
+Example:
+
+```bash
+curl "http://127.0.0.1:8000/admin/pipeline/all/status" \
+  -H "X-Admin-Token: dev-admin-token"
+```
+
+### POST /admin/shutdown
+
+Query parameters:
+
+- `delay_sec` (`0..10`, default `0.2`)
+
+Purpose:
+
+- request graceful API process shutdown after the HTTP response is returned
+
+Example:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/admin/shutdown?delay_sec=0.2" \
+  -H "X-Admin-Token: dev-admin-token"
+```
+
 ## Common Response Shapes
 
 ### Name search response
@@ -198,14 +260,70 @@ curl -X POST "http://127.0.0.1:8000/admin/pipeline?chain=RAMI_LEVY&mode=full&max
   "total_items": 10,
   "items": [
     {
-      "chain": "SHUFERSAL",
-      "item_code": "...",
+      "item_code": "7290110115364",
       "item_name": "...",
-      "prices": [...],
-      "min_price": 1.0,
-      "max_price": 3.0
+      "manufacturer_name": "...",
+      "chains": ["SHUFERSAL", "VICTORY"],
+      "chain_names": ["שופרסל", "ויקטורי"],
+      "prices": [
+        {
+          "chain": "SHUFERSAL",
+          "chain_name": "שופרסל",
+          "chain_id": "7290027600007",
+          "store_id": "1",
+          "store_name": "...",
+          "city": "...",
+          "sub_chain_id": "001",
+          "price": 38.9,
+          "unit_of_measure_price": 4.3222,
+          "price_update_date": "2026-03-14 12:30",
+          "allow_discount": "1",
+          "item_status": "1"
+        }
+      ],
+      "min_price": 38.9,
+      "max_price": 39.9,
+      "match_score": 0.91
     }
   ]
+}
+```
+
+### All-chains worker status response
+
+```json
+{
+  "worker": {
+    "running": true,
+    "job_id": "9800c0ed482f4e6895bb506abd581c4c",
+    "started_at": "2026-03-14T13:33:46.878235+00:00",
+    "finished_at": null,
+    "mode": "refresh",
+    "total_chains": 9,
+    "completed_chains": 1,
+    "success_count": 1,
+    "failure_count": 0,
+    "current_chain": "FRESHMARKET",
+    "reload_after": false,
+    "reload": {
+      "attempted": false,
+      "success": null,
+      "mode": "refresh"
+    },
+    "results": [
+      {
+        "chain": "CARREFOUR",
+        "status_code": 200,
+        "success": true,
+        "duration_sec": 1.366,
+        "return_code": 0,
+        "retried_with_scrape": false,
+        "stdout": "",
+        "stderr": "...last log tail..."
+      }
+    ],
+    "error": null
+  }
 }
 ```
 

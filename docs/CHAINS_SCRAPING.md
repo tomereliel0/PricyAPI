@@ -193,6 +193,10 @@ Key args:
 
 Schema version currently: `1`
 
+For full field-by-field JSON schema details and examples, see:
+
+- [docs/DATA_FORMATS.md](docs/DATA_FORMATS.md)
+
 ### links-map
 
 Path:
@@ -204,6 +208,7 @@ Contains:
 - all discovered files
 - grouping by file type
 - latest file selectors per branch where available
+- key sections: `all_files`, `by_type`, `latest_by_branch`, `latest_by_type`
 
 ### branches
 
@@ -214,6 +219,7 @@ Path:
 Contains:
 
 - normalized branch metadata records
+- key sections: `source`, `record_count`, `records`
 
 ### prices per store
 
@@ -224,6 +230,7 @@ Path pattern:
 Contains:
 
 - normalized item price records for one store
+- key sections: `source`, `store`, `record_count`, `records`
 
 ### run summary
 
@@ -236,6 +243,7 @@ Contains:
 - execution metadata
 - success/failure counts
 - per-store subprocess status details
+- key sections: `total_requested`, `total_completed`, `success_count`, `failure_count`, `results`, `failures`
 
 ## Logging
 

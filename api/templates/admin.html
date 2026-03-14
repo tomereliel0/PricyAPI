@@ -10,7 +10,7 @@
   <main class="page">
     <header class="hero">
       <h1>Pricy Admin</h1>
-      <p>Token-protected controls for index reload and pipeline trigger.</p>
+      <p>Token-protected controls for index reload and pipeline triggers (single chain or all chains).</p>
       <a class="link" href="/search">Search UI</a>
     </header>
 
@@ -62,10 +62,20 @@
           </select>
         </label>
 
+        <label>
+          Reload After All Pipelines
+          <select id="reload-after-all">
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        </label>
+
         <div class="buttons">
           <button type="button" id="btn-meta">Load Meta</button>
           <button type="button" id="btn-reload">Reload Index</button>
           <button type="button" id="btn-pipeline">Run Pipeline</button>
+          <button type="button" id="btn-pipeline-all">Run All Pipelines</button>
+          <button type="button" id="btn-pipeline-all-status">All Pipelines Status</button>
         </div>
       </form>
       <p id="admin-status" class="status">Ready</p>
@@ -73,6 +83,6 @@
     </section>
   </main>
 
-  <script src="/static/admin.js"></script>
+  <script src="/static/admin.js?v=20260314-1"></script>
 </body>
 </html>

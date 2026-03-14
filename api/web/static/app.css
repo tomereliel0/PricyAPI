@@ -115,6 +115,21 @@ th, td {
   padding: 6px;
 }
 
+th .sort-header {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+th .sort-header:hover {
+  color: var(--accent);
+}
+
 .log {
   margin-top: 10px;
   min-height: 180px;
