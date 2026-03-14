@@ -41,6 +41,8 @@ Environment variables:
 
 - `PRICY_ADMIN_TOKEN`
   - default: `dev-admin-token`
+- `PRICY_API_LOG_LEVEL`
+  - default: `INFO`
 
 Configuration file:
 
@@ -57,6 +59,27 @@ Notes:
 - shell environment variables still override `.env` values
 - `.env` is git-ignored
 - use `.env.example` as a template
+
+## API Server Logging
+
+The API configures an application logger (`pricy.api`) on startup.
+
+Log outputs:
+
+- rotating file log: `api/logs/api.log`
+- console log: stdout/stderr
+
+Rotation policy:
+
+- max file size: 5 MB
+- backup files kept: 5
+
+What is logged:
+
+- request access logs (method, path, query, client IP, status, duration)
+- startup and shutdown lifecycle events
+- admin actions (`reload`, single-chain pipeline, all-chains worker start/conflict, shutdown)
+- pipeline execution status and all-chains worker progress
 
 ## Public Endpoints
 
@@ -167,9 +190,11 @@ Query parameters:
 
 - `chain` (default `SHUFERSAL`, must be an available folder under `chains/`)
 - `mode` (`full` or `refresh`)
+- `scrape_links` (`true|false`, default `true`)
 - `max_branches` (default `0`, no cap)
 - `max_workers` (`1..32`, default `6`)
 - `insecure` (`true|false`, default `false`)
+- `reload_after` (`true|false`, default `true`)
 
 Purpose:
 
@@ -177,7 +202,10 @@ Purpose:
 
 Behavior:
 
+- when `scrape_links=true`, runs pipeline with `--scrape-links` before branches/prices steps
 - if first execution fails with 403/expired/signed hint, retries once with `--scrape-links`
+- if execution fails with TLS certificate verification errors and `insecure=false`, retries once with `--insecure`
+- when `reload_after=true` and pipeline succeeds, API index for that mode is reloaded automatically
 
 Example:
 
@@ -198,6 +226,7 @@ curl -X POST "http://127.0.0.1:8000/admin/pipeline?chain=RAMI_LEVY&mode=full&max
 Query parameters:
 
 - `mode` (`full` or `refresh`)
+- `scrape_links` (`true|false`, default `true`)
 - `max_branches` (default `0`, no cap)
 - `max_workers` (`1..32`, default `6`)
 - `insecure` (`true|false`, default `false`)

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import signal
 import subprocess
@@ -13,20 +14,24 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+API_DIR = Path(__file__).resolve().parent
 CHAINS_DIR = ROOT_DIR / "chains"
 CHAINS_RESOURCES_FILE = ROOT_DIR / "chains-resources.json"
-STATIC_DIR = Path(__file__).resolve().parent / "web" / "static"
-TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+STATIC_DIR = API_DIR / "web" / "static"
+TEMPLATES_DIR = API_DIR / "templates"
+LOGS_DIR = API_DIR / "logs"
+API_LOG_FILE = LOGS_DIR / "api.log"
 DEFAULT_MODE = "full"
 SUPPORTED_MODES = {"full", "refresh"}
 _CHAIN_NAMES_BY_KEY: Optional[Dict[str, str]] = None
@@ -37,6 +42,7 @@ _PIPELINE_WORKER_STATE: Dict[str, Any] = {
     "started_at": None,
     "finished_at": None,
     "mode": None,
+    "scrape_links": True,
     "total_chains": 0,
     "completed_chains": 0,
     "success_count": 0,
@@ -47,6 +53,34 @@ _PIPELINE_WORKER_STATE: Dict[str, Any] = {
     "results": [],
     "error": None,
 }
+
+
+def configure_api_logger() -> logging.Logger:
+    logger = logging.getLogger("pricy.api")
+    if logger.handlers:
+        return logger
+
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    log_level_name = os.getenv("PRICY_API_LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+
+    file_handler = RotatingFileHandler(str(API_LOG_FILE), maxBytes=5_000_000, backupCount=5, encoding="utf-8")
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(formatter)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(log_level)
+    stream_handler.setFormatter(formatter)
+
+    logger.setLevel(log_level)
+    logger.propagate = False
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
+    return logger
+
+
+api_logger = configure_api_logger()
 
 
 def load_dotenv(dotenv_path: Path) -> None:
@@ -113,6 +147,7 @@ class PriceIndexStore:
         return sorted([p for p in CHAINS_DIR.iterdir() if p.is_dir()])
 
     def _load_mode(self, mode: str) -> Dict[str, Any]:
+        started = time.perf_counter()
         now_iso = datetime.now(timezone.utc).isoformat()
         records: List[IndexedRecord] = []
 
@@ -196,6 +231,14 @@ class PriceIndexStore:
             "barcodes": len(barcode_index),
             "chains": sorted({r.chain_key for r in records}),
         }
+        api_logger.info(
+            "index loaded mode=%s records=%d barcodes=%d chains=%d duration_ms=%.2f",
+            mode,
+            meta["records"],
+            meta["barcodes"],
+            len(meta["chains"]),
+            (time.perf_counter() - started) * 1000,
+        )
 
         return {
             "records": records,
@@ -237,6 +280,50 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def access_log_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
+    started = time.perf_counter()
+    client_ip = request.client.host if request.client else "-"
+    method = request.method
+    path = request.url.path
+    query = request.url.query
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = (time.perf_counter() - started) * 1000
+        api_logger.exception(
+            "request failed method=%s path=%s query=%s client=%s status=500 duration_ms=%.2f",
+            method,
+            path,
+            query,
+            client_ip,
+            duration_ms,
+        )
+        raise
+
+    duration_ms = (time.perf_counter() - started) * 1000
+    status = response.status_code
+    if status >= 500:
+        level = logging.ERROR
+    elif status >= 400:
+        level = logging.WARNING
+    else:
+        level = logging.INFO
+
+    api_logger.log(
+        level,
+        "request method=%s path=%s query=%s client=%s status=%d duration_ms=%.2f",
+        method,
+        path,
+        query,
+        client_ip,
+        status,
+        duration_ms,
+    )
+    return response
+
+
 def _admin_token() -> str:
     return os.getenv("PRICY_ADMIN_TOKEN", "dev-admin-token")
 
@@ -271,6 +358,7 @@ def _chain_display_name(chain_key: str) -> str:
 def require_admin(x_admin_token: Optional[str] = Header(default=None), token: Optional[str] = Query(default=None)) -> None:
     candidate = x_admin_token or token
     if candidate != _admin_token():
+        api_logger.warning("admin auth failed")
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -292,6 +380,7 @@ def _run_chain_pipeline(
     max_branches: int,
     max_workers: int,
     insecure: bool,
+    scrape_links: bool,
 ) -> tuple[Dict[str, Any], int]:
     available = _available_chains()
     if chain_key not in available:
@@ -302,20 +391,64 @@ def _run_chain_pipeline(
         raise HTTPException(status_code=400, detail=f"Pipeline script not found for chain '{chain_key}'")
 
     cmd = [_pipeline_python_bin(), str(pipeline), "--mode", mode, "--max-workers", str(max_workers)]
+    if scrape_links:
+        cmd.append("--scrape-links")
     if max_branches > 0:
         cmd.extend(["--max-branches", str(max_branches)])
     if insecure:
         cmd.append("--insecure")
 
+    api_logger.info(
+        "pipeline start chain=%s mode=%s scrape_links=%s max_branches=%d max_workers=%d insecure=%s",
+        chain_key,
+        mode,
+        scrape_links,
+        max_branches,
+        max_workers,
+        insecure,
+    )
+
     started = time.time()
     first = subprocess.run(cmd, capture_output=True, text=True)
     retried = False
+    retried_with_insecure = False
     if first.returncode != 0:
         blob = f"{first.stdout}\n{first.stderr}".lower()
-        if "http 403" in blob or "signed" in blob or "expired" in blob:
+        should_retry_with_scrape = (
+            not scrape_links
+            and (
+                "403" in blob
+                or "http error 403" in blob
+                or "failed to authenticate the request" in blob
+                or "authorization header" in blob
+                or "signature" in blob
+                or "signed" in blob
+                or "expired" in blob
+            )
+        )
+        if should_retry_with_scrape:
             retry_cmd = list(cmd)
             retry_cmd.append("--scrape-links")
             retried = True
+            first = subprocess.run(retry_cmd, capture_output=True, text=True)
+            blob = f"{first.stdout}\n{first.stderr}".lower()
+
+        should_retry_with_insecure = (
+            first.returncode != 0
+            and not insecure
+            and (
+                "certificate verify failed" in blob
+                or "ssl:" in blob
+                or "tls" in blob
+                or "unable to get local issuer certificate" in blob
+            )
+        )
+        if should_retry_with_insecure:
+            retry_cmd = list(cmd)
+            if "--scrape-links" not in retry_cmd and (scrape_links or retried):
+                retry_cmd.append("--scrape-links")
+            retry_cmd.append("--insecure")
+            retried_with_insecure = True
             first = subprocess.run(retry_cmd, capture_output=True, text=True)
 
     payload = {
@@ -324,13 +457,33 @@ def _run_chain_pipeline(
         "max_branches": max_branches,
         "max_workers": max_workers,
         "insecure": insecure,
+        "scrape_links": scrape_links,
         "retried_with_scrape": retried,
+        "retried_with_insecure": retried_with_insecure,
         "return_code": first.returncode,
         "duration_sec": round(time.time() - started, 3),
         "stdout": first.stdout[-4000:],
         "stderr": first.stderr[-4000:],
     }
     status = 200 if first.returncode == 0 else 500
+    if status == 200:
+        api_logger.info(
+            "pipeline completed chain=%s mode=%s return_code=%d duration_sec=%.3f",
+            chain_key,
+            mode,
+            first.returncode,
+            payload["duration_sec"],
+        )
+    else:
+        api_logger.warning(
+            "pipeline failed chain=%s mode=%s return_code=%d duration_sec=%.3f retried_scrape=%s retried_insecure=%s",
+            chain_key,
+            mode,
+            first.returncode,
+            payload["duration_sec"],
+            retried,
+            retried_with_insecure,
+        )
     return payload, status
 
 
@@ -347,13 +500,26 @@ def _run_all_pipelines_worker(
     max_branches: int,
     max_workers: int,
     insecure: bool,
+    scrape_links: bool,
     reload_after: bool,
 ) -> None:
     try:
         chains = _available_chains()
+        api_logger.info(
+            "all-pipelines worker started mode=%s scrape_links=%s chains=%d max_branches=%d max_workers=%d insecure=%s reload_after=%s",
+            mode,
+            scrape_links,
+            len(chains),
+            max_branches,
+            max_workers,
+            insecure,
+            reload_after,
+        )
         for chain_key in chains:
             with _PIPELINE_WORKER_LOCK:
                 _PIPELINE_WORKER_STATE["current_chain"] = chain_key
+
+            api_logger.info("all-pipelines worker chain start chain=%s", chain_key)
 
             payload, status = _run_chain_pipeline(
                 chain_key,
@@ -361,6 +527,7 @@ def _run_all_pipelines_worker(
                 max_branches=max_branches,
                 max_workers=max_workers,
                 insecure=insecure,
+                scrape_links=scrape_links,
             )
 
             with _PIPELINE_WORKER_LOCK:
@@ -381,6 +548,16 @@ def _run_all_pipelines_worker(
                     _PIPELINE_WORKER_STATE["success_count"] += 1
                 else:
                     _PIPELINE_WORKER_STATE["failure_count"] += 1
+                completed = _PIPELINE_WORKER_STATE["completed_chains"]
+                total = _PIPELINE_WORKER_STATE["total_chains"]
+
+            api_logger.info(
+                "all-pipelines worker chain done chain=%s status=%d completed=%d/%d",
+                chain_key,
+                status,
+                completed,
+                total,
+            )
 
         if reload_after:
             reload_status: Dict[str, Any]
@@ -401,17 +578,29 @@ def _run_all_pipelines_worker(
                 }
             with _PIPELINE_WORKER_LOCK:
                 _PIPELINE_WORKER_STATE["reload"] = reload_status
+            api_logger.info(
+                "all-pipelines worker reload mode=%s success=%s",
+                mode,
+                reload_status.get("success"),
+            )
 
         with _PIPELINE_WORKER_LOCK:
             _PIPELINE_WORKER_STATE["running"] = False
             _PIPELINE_WORKER_STATE["current_chain"] = None
             _PIPELINE_WORKER_STATE["finished_at"] = _utc_now_iso()
+            api_logger.info(
+                "all-pipelines worker completed mode=%s success=%d failed=%d",
+                mode,
+                _PIPELINE_WORKER_STATE["success_count"],
+                _PIPELINE_WORKER_STATE["failure_count"],
+            )
     except Exception as exc:  # pragma: no cover - defensive path
         with _PIPELINE_WORKER_LOCK:
             _PIPELINE_WORKER_STATE["running"] = False
             _PIPELINE_WORKER_STATE["current_chain"] = None
             _PIPELINE_WORKER_STATE["finished_at"] = _utc_now_iso()
             _PIPELINE_WORKER_STATE["error"] = str(exc)
+        api_logger.exception("all-pipelines worker crashed: %s", exc)
 
 
 def _score_name(query: str, item_name: str) -> Optional[float]:
@@ -490,7 +679,9 @@ def _group_records(rows: List[IndexedRecord], query: Optional[str] = None) -> Li
 
 @app.on_event("startup")
 def startup_load_default() -> None:
+    api_logger.info("startup loading default mode=%s", DEFAULT_MODE)
     store.ensure_mode(DEFAULT_MODE)
+    api_logger.info("startup completed")
 
 
 @app.get("/health")
@@ -569,7 +760,9 @@ def admin_reload(
     mode: str = Query(DEFAULT_MODE),
     _: None = Depends(require_admin),
 ) -> Dict[str, Any]:
+    api_logger.info("admin reload requested mode=%s", mode)
     result = store.reload_mode(mode)
+    api_logger.info("admin reload completed mode=%s records=%d", mode, result["meta"].get("records", 0))
     return {
         "status": "reloaded",
         "mode": mode,
@@ -584,16 +777,35 @@ def admin_pipeline(
     max_branches: int = Query(0, ge=0),
     max_workers: int = Query(6, ge=1, le=32),
     insecure: bool = Query(False),
+    scrape_links: bool = Query(True),
+    reload_after: bool = Query(True),
     _: None = Depends(require_admin),
 ) -> JSONResponse:
     chain_key = chain.strip().upper()
+    api_logger.info(
+        "admin pipeline requested chain=%s mode=%s scrape_links=%s max_branches=%d max_workers=%d insecure=%s reload_after=%s",
+        chain_key,
+        mode,
+        scrape_links,
+        max_branches,
+        max_workers,
+        insecure,
+        reload_after,
+    )
     payload, status = _run_chain_pipeline(
         chain_key,
         mode=mode,
         max_branches=max_branches,
         max_workers=max_workers,
         insecure=insecure,
+        scrape_links=scrape_links,
     )
+    if status == 200 and reload_after:
+        reloaded = store.reload_mode(mode)
+        payload["reloaded"] = {"attempted": True, "success": True, "mode": mode, "meta": reloaded.get("meta")}
+    else:
+        payload["reloaded"] = {"attempted": bool(reload_after and status == 200), "success": None, "mode": mode}
+    api_logger.info("admin pipeline finished chain=%s status=%d", chain_key, status)
     return JSONResponse(status_code=status, content=payload)
 
 
@@ -603,6 +815,7 @@ def admin_pipeline_all(
     max_branches: int = Query(0, ge=0),
     max_workers: int = Query(6, ge=1, le=32),
     insecure: bool = Query(False),
+    scrape_links: bool = Query(True),
     reload_after: bool = Query(True),
     _: None = Depends(require_admin),
 ) -> JSONResponse:
@@ -614,6 +827,7 @@ def admin_pipeline_all(
         if _PIPELINE_WORKER_STATE.get("running"):
             state = dict(_PIPELINE_WORKER_STATE)
             state["results"] = [dict(row) for row in _PIPELINE_WORKER_STATE.get("results", [])]
+            api_logger.warning("admin all-pipelines request rejected: already running job_id=%s", state.get("job_id"))
             return JSONResponse(status_code=409, content={"status": "already_running", "worker": state})
 
         job_id = uuid4().hex
@@ -624,6 +838,7 @@ def admin_pipeline_all(
                 "started_at": _utc_now_iso(),
                 "finished_at": None,
                 "mode": mode,
+                "scrape_links": scrape_links,
                 "total_chains": len(chains),
                 "completed_chains": 0,
                 "success_count": 0,
@@ -643,11 +858,18 @@ def admin_pipeline_all(
             "max_branches": max_branches,
             "max_workers": max_workers,
             "insecure": insecure,
+            "scrape_links": scrape_links,
             "reload_after": reload_after,
         },
         daemon=True,
     )
     thread.start()
+    api_logger.info(
+        "admin all-pipelines worker started job_id=%s mode=%s chains=%d",
+        job_id,
+        mode,
+        len(chains),
+    )
 
     return JSONResponse(
         status_code=202,
@@ -655,6 +877,7 @@ def admin_pipeline_all(
             "status": "started",
             "job_id": job_id,
             "mode": mode,
+            "scrape_links": scrape_links,
             "total_chains": len(chains),
             "reload_after": reload_after,
         },
@@ -676,6 +899,7 @@ def admin_shutdown(
     _: None = Depends(require_admin),
 ) -> Dict[str, Any]:
     """Request a graceful process shutdown after returning the HTTP response."""
+    api_logger.warning("admin shutdown requested delay_sec=%.3f", delay_sec)
 
     def _shutdown_later() -> None:
         time.sleep(delay_sec)
@@ -703,6 +927,7 @@ if __name__ == "__main__":
 
     # Install explicit handlers so Ctrl+C / SIGTERM always trigger graceful shutdown.
     def _handle_exit(sig: int, frame: object) -> None:  # pragma: no cover - signal-driven path
+        api_logger.info("signal received sig=%s should_exit=%s", sig, server.should_exit)
         if server.should_exit:
             server.force_exit = True
         else:
@@ -712,7 +937,9 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, _handle_exit)
 
     try:
+        api_logger.info("api server starting host=127.0.0.1 port=8000")
         server.run()
     finally:
         # Ensure process exits after server loop returns, avoiding lingering sockets/process state.
+        api_logger.info("api server stopped")
         raise SystemExit(0)

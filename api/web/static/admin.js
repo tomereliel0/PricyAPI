@@ -85,6 +85,8 @@ document.getElementById("btn-pipeline").addEventListener("click", async () => {
   const maxBranches = document.getElementById("max-branches").value;
   const maxWorkers = document.getElementById("max-workers").value;
   const insecure = document.getElementById("insecure").value;
+  const scrapeLinks = document.getElementById("scrape-links").value;
+  const reloadAfterSingle = document.getElementById("reload-after-single").value;
 
   const params = new URLSearchParams();
   params.set("chain", chain);
@@ -92,6 +94,8 @@ document.getElementById("btn-pipeline").addEventListener("click", async () => {
   params.set("max_branches", maxBranches || "0");
   params.set("max_workers", maxWorkers || "6");
   params.set("insecure", insecure || "false");
+  params.set("scrape_links", scrapeLinks || "true");
+  params.set("reload_after", reloadAfterSingle || "true");
 
   statusEl.textContent = "Running pipeline...";
   try {
@@ -108,6 +112,7 @@ document.getElementById("btn-pipeline-all").addEventListener("click", async () =
   const maxBranches = document.getElementById("max-branches").value;
   const maxWorkers = document.getElementById("max-workers").value;
   const insecure = document.getElementById("insecure").value;
+  const scrapeLinks = document.getElementById("scrape-links").value;
   const reloadAfterAll = document.getElementById("reload-after-all").value;
 
   const params = new URLSearchParams();
@@ -115,6 +120,7 @@ document.getElementById("btn-pipeline-all").addEventListener("click", async () =
   params.set("max_branches", maxBranches || "0");
   params.set("max_workers", maxWorkers || "6");
   params.set("insecure", insecure || "false");
+  params.set("scrape_links", scrapeLinks || "true");
   params.set("reload_after", reloadAfterAll || "true");
 
   statusEl.textContent = "Starting all-pipelines worker...";
