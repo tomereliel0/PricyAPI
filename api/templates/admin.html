@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pricy Admin</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1>Pricy Admin</h1>
+      <p>Token-protected controls for index reload and pipeline trigger.</p>
+      <a class="link" href="/search">Search UI</a>
+    </header>
+
+    <section class="panel">
+      <form id="admin-form" class="grid">
+        <label>
+          Chain
+          <select id="chain">
+            <option value="SHUFERSAL">SHUFERSAL</option>
+            <option value="RAMI_LEVY">RAMI_LEVY</option>
+            <option value="OSHER_AD">OSHER_AD</option>
+            <option value="YOHANANOF">YOHANANOF</option>
+            <option value="TIV_TAAM">TIV_TAAM</option>
+            <option value="FRESHMARKET">FRESHMARKET</option>
+            <option value="SUPER_YUDA">SUPER_YUDA</option>
+            <option value="CARREFOUR">CARREFOUR</option>
+            <option value="VICTORY">VICTORY</option>
+          </select>
+        </label>
+
+        <label>
+          Admin Token
+          <input id="token" type="password" required placeholder="X-Admin-Token value">
+        </label>
+
+        <label>
+          Mode
+          <select id="mode">
+            <option value="full">full</option>
+            <option value="refresh">refresh</option>
+          </select>
+        </label>
+
+        <label>
+          Max Branches (pipeline)
+          <input id="max-branches" type="number" min="0" value="0">
+        </label>
+
+        <label>
+          Max Workers (pipeline)
+          <input id="max-workers" type="number" min="1" max="32" value="6">
+        </label>
+
+        <label>
+          Insecure TLS (pipeline)
+          <select id="insecure">
+            <option value="false">false</option>
+            <option value="true">true</option>
+          </select>
+        </label>
+
+        <div class="buttons">
+          <button type="button" id="btn-meta">Load Meta</button>
+          <button type="button" id="btn-reload">Reload Index</button>
+          <button type="button" id="btn-pipeline">Run Pipeline</button>
+        </div>
+      </form>
+      <p id="admin-status" class="status">Ready</p>
+      <pre id="admin-output" class="log"></pre>
+    </section>
+  </main>
+
+  <script src="/static/admin.js"></script>
+</body>
+</html>

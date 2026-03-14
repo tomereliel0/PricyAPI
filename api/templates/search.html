@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pricy Search</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1>Pricy Item Search</h1>
+      <p>Search by barcode or item name. Results include prices across all chains and branches.</p>
+      <a class="link" href="/admin">Admin</a>
+    </header>
+
+    <section class="panel">
+      <form id="search-form" class="grid">
+        <label>
+          Search Type
+          <select id="search-type" name="type">
+            <option value="name">Name</option>
+            <option value="barcode">Barcode</option>
+          </select>
+        </label>
+
+        <label>
+          Query
+          <input id="query" name="query" type="text" required placeholder="e.g. קיט or 7290012345678">
+        </label>
+
+        <label>
+          Mode
+          <select id="mode" name="mode">
+            <option value="full">full</option>
+            <option value="refresh">refresh</option>
+          </select>
+        </label>
+
+        <label>
+          Limit (name only)
+          <input id="limit" name="limit" type="number" min="1" max="200" value="50">
+        </label>
+
+        <button type="submit">Search</button>
+      </form>
+      <p id="status" class="status">Ready</p>
+    </section>
+
+    <section id="results" class="results"></section>
+  </main>
+
+  <script src="/static/search.js"></script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+:root {
+  --bg: #f4efe7;
+  --panel: #fffaf2;
+  --ink: #1d2733;
+  --accent: #0f766e;
+  --accent-2: #c2410c;
+  --muted: #6b7280;
+  --border: #e7dccb;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at top right, #ffe5b4 0, transparent 35%), var(--bg);
+}
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.hero {
+  margin-bottom: 18px;
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  letter-spacing: 0.2px;
+}
+
+.link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+input, select, button {
+  border: 1px solid #d7c7af;
+  border-radius: 10px;
+  padding: 10px;
+  font: inherit;
+}
+
+button {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  border: 0;
+  cursor: pointer;
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  grid-column: span 4;
+}
+
+.status {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.results {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th, td {
+  border-bottom: 1px solid #eee;
+  text-align: left;
+  padding: 6px;
+}
+
+.log {
+  margin-top: 10px;
+  min-height: 180px;
+  background: #18212f;
+  color: #d1fae5;
+  border-radius: 10px;
+  padding: 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .buttons {
+    grid-column: span 1;
+    flex-wrap: wrap;
+  }
+}

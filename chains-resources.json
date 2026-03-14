@@ -1,4 +1,56 @@
-{
-    {"chain_name": "SHUFERSAL", "chain_name_he": "שופרסל", "logo_url": null, "chain_resources_path": "chains/shufersal-resources.json"},
-    {"chain_name": "RAMI_LEVY", "chain_name_he": "רמי לוי", "logo_url": null, "chain_resources_path": "chains/rami-levy-resources.json"},
-}
+[
+    {
+        "chain_name": "SHUFERSAL",
+        "chain_name_he": "שופרסל",
+        "logo_url": null,
+        "chain_resources_path": "chains/shufersal-resources.json"
+    },
+    {
+        "chain_name": "RAMI_LEVY",
+        "chain_name_he": "רמי לוי",
+        "logo_url": null,
+        "chain_resources_path": "chains/rami-levy-resources.json"
+    },
+    {
+        "chain_name": "OSHER_AD",
+        "chain_name_he": "אושר עד",
+        "logo_url": null,
+        "chain_resources_path": "chains/osher-ad-resources.json"
+    },
+    {
+        "chain_name": "YOHANANOF",
+        "chain_name_he": "יוחננוף",
+        "logo_url": null,
+        "chain_resources_path": "chains/yohananof-resources.json"
+    },
+    {
+        "chain_name": "TIV_TAAM",
+        "chain_name_he": "טיב טעם",
+        "logo_url": null,
+        "chain_resources_path": "chains/tiv-taam-resources.json"
+    },
+    {
+        "chain_name": "FRESHMARKET",
+        "chain_name_he": "פרשמרקט",
+        "logo_url": null,
+        "chain_resources_path": "chains/freshmarket-resources.json"
+    },
+    {
+        "chain_name": "SUPER_YUDA",
+        "chain_name_he": "סופר יהודה",
+        "logo_url": null,
+        "chain_resources_path": "chains/super-yuda-resources.json"
+    },
+    {
+        "chain_name": "CARREFOUR",
+        "chain_name_he": "קרפור",
+        "logo_url": null,
+        "chain_resources_path": "chains/carrefour-resources.json"
+    },
+    {
+        "chain_name": "VICTORY",
+        "chain_name_he": "ויקטורי",
+        "logo_url": null,
+        "chain_resources_path": "chains/victory-resources.json"
+    }
+]
