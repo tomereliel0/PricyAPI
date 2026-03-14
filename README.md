@@ -26,9 +26,10 @@ Current implementation includes:
 ## Quick Start
 
 ```bash
-cd /Users/tomereliel/Documents/Projects/PricyAPI
+cd ./PricyAPI
 source .venv/bin/activate
 python chains/SHUFERSAL/run_pipeline.py --scrape-links --mode full --max-workers 8 --debug
+python chains/RAMI_LEVY/run_pipeline.py --scrape-links --mode full --max-workers 8 --insecure --debug
 python chains/OSHER_AD/run_pipeline.py --scrape-links --mode full --max-workers 8 --insecure --debug
 python chains/YOHANANOF/run_pipeline.py --scrape-links --mode full --max-workers 8 --insecure --debug
 python chains/TIV_TAAM/run_pipeline.py --scrape-links --mode full --max-workers 8 --insecure --debug
@@ -49,6 +50,7 @@ Open:
 - Use `python api/main.py` from project root.
 - Do not run `python main.py` from repo root.
 - Cerberus-based chains (`RAMI_LEVY`, `OSHER_AD`, `YOHANANOF`, `TIV_TAAM`, `FRESHMARKET`, `SUPER_YUDA`) may require `--insecure` in environments with certificate trust issues.
+- Admin pipeline endpoint supports per-request chain selection via `chain=<CHAIN_KEY>`.
 - CARREFOUR is non-Cerberus and follows the SHUFERSAL-style public paginated listing flow.
 - VICTORY is non-Cerberus and uses laibcatalog table links, including multiple `StoresFull` files (one per sub-chain) merged into one branches set.
 - For ingestion and API details, use the split docs above.

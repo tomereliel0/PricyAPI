@@ -160,13 +160,15 @@ curl -X POST "http://127.0.0.1:8000/admin/reload?mode=full" \
 
 Query parameters:
 
+- `chain` (default `SHUFERSAL`, must be an available folder under `chains/`)
 - `mode` (`full` or `refresh`)
 - `max_branches` (default `0`, no cap)
 - `max_workers` (`1..32`, default `6`)
+- `insecure` (`true|false`, default `false`)
 
 Purpose:
 
-- execute the SHUFERSAL ingestion pipeline from API
+- execute a selected chain ingestion pipeline from API
 
 Behavior:
 
@@ -175,7 +177,14 @@ Behavior:
 Example:
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/admin/pipeline?mode=full&max_workers=8" \
+curl -X POST "http://127.0.0.1:8000/admin/pipeline?chain=VICTORY&mode=full&max_workers=8" \
+  -H "X-Admin-Token: dev-admin-token"
+```
+
+Cerberus chain example:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/admin/pipeline?chain=RAMI_LEVY&mode=full&max_workers=8&insecure=true" \
   -H "X-Admin-Token: dev-admin-token"
 ```
 

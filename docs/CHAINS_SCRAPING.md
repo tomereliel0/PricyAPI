@@ -14,6 +14,12 @@ Current implemented chain pipelines:
 - CARREFOUR under `chains/CARREFOUR` (public paginated, non-Cerberus)
 - VICTORY under `chains/VICTORY` (laibcatalog table links, non-Cerberus, multi-sub-chain StoresFull)
 
+Recent chain-specific notes:
+
+- VICTORY stores ingestion merges latest `StoresFull` files across sub-chains by `chain_id`.
+- VICTORY price payload parsing supports both XML `Item` and XML `Product` node variants.
+- Cerberus chains support skip behavior in batch mode for stores without currently published price files.
+
 Pipeline flow:
 
 1. Scrape links index (`scrape_links.py`)
@@ -249,6 +255,18 @@ Logs:
 ```bash
 source .venv/bin/activate
 python chains/SHUFERSAL/run_pipeline.py --scrape-links --mode refresh --max-workers 8
+```
+
+### Cerberus chain smoke run (RAMI_LEVY)
+
+```bash
+python chains/RAMI_LEVY/run_pipeline.py --scrape-links --mode full --max-branches 10 --max-workers 4 --insecure --debug
+```
+
+### Cerberus chain full run (RAMI_LEVY)
+
+```bash
+python chains/RAMI_LEVY/run_pipeline.py --scrape-links --mode full --max-workers 8 --insecure --debug
 ```
 
 ### Full rebuild
